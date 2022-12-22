@@ -20,9 +20,9 @@ class SessionAnalyzer:
         session = None
         await asyncio.sleep(1, loop=self._loop)
         try:
-            session = await redis_client.get(session_key, encoding="utf-8")
+            session = await redis_client.get(session_key) # No need to provide other params other than the key
             session = json.loads(session)
-        except (aioredis.ProtocolError, TypeError, ValueError) as error:
+        except (aioredis.ConnectionError, aioredis.TimeoutError, TypeError, ValueError) as error: # ProtocolError does not exists in aioredis latest version
             self.logger.exception("Can't get session for analyze: %s", error)
         else:
             result = await self.create_stats(session, redis_client)
@@ -35,9 +35,9 @@ class SessionAnalyzer:
             s_key = session["snare_uuid"]
             del_key = session["sess_uuid"]
             try:
-                await redis_client.zadd(s_key, session["start_time"], json.dumps(session))
+                await redis_client.zadd(s_key, { json.dumps(session): session["start_time"]}) # new API interface in redis v3.0
                 await redis_client.delete(*[del_key])
-            except aioredis.ProtocolError as redis_error:
+            except aioredis.ConnectionError as redis_error: # ProtocolError does not exists in aioredis latest version
                 self.logger.exception("Error with redis. Session will be returned to the queue: %s", redis_error)
                 self.queue.put(session)
 
