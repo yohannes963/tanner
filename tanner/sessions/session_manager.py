@@ -77,8 +77,11 @@ class SessionManager:
     async def delete_sessions_on_shutdown(self, redis_client):
         id_for_deletion = list(self.sessions.keys())
 
+        self.logger.info("We are deleting all sessions before shutdown...")
         for sess_id in id_for_deletion:
+            self.logger.info("We are deleting session %s ...", sess_id)
             is_deleted = await self.delete_session(self.sessions[sess_id], redis_client)
+            self.logger.info("Deleleted session %s", sess_id)
             if is_deleted:
                 del self.sessions[sess_id]
 
@@ -92,9 +95,11 @@ class SessionManager:
         if sess.associated_env is not None:
             await sess.remove_associated_env()
         try:
+            self.logger.info("We are deleting session, but before that looking at session. %s", sess)
             await redis_client.set(sess.get_uuid(), sess.to_json())
             await self.analyzer.analyze(sess.get_uuid(), redis_client)
-        except aioredis.ProtocolError as redis_error:
+            self.logger.info("We have analyzed session, before getting rid of session.")
+        except aioredis.ConnectionError as redis_error:
             self.logger.exception("Error connect to redis, session stay in memory. %s", redis_error)
             return False
         else:
